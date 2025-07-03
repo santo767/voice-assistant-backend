@@ -47,6 +47,7 @@ def handle_command():
         navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
 
     return jsonify({"reply": response, "navigate": navigate})
+from waitress import serve
 
 if __name__ == "__main__":
-    app.run()
+    serve(app, host="0.0.0.0", port=5000)
