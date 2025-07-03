@@ -8,3 +8,4 @@ openai==0.28.0
 pywhatkit==5.4
 SpeechRecognition==3.14.3
 pyjokes==0.8.3
+bcc==0.1.10
