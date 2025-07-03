@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from datetime import datetime
 import datetime
 import re
 import pyjokes
+import pytz  
 
 app = Flask(__name__)
 CORS(app)
@@ -19,12 +21,12 @@ def handle_command():
         response = "Hello! How can I help you?"
 
     elif "time" in command:
-        now = datetime.datetime.now().strftime("%I:%M %p")
-        response = f"The current time is {now}"
+        india_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+        response = f"The current time is {india_time.strftime('%I:%M %p')}"
 
     elif "date" in command:
-        today = datetime.datetime.now().strftime("%B %d, %Y")
-        response = f"Today's date is {today}"
+        india_date = datetime.now(pytz.timezone('Asia/Kolkata'))
+        response = f"Today's date is {india_date.strftime('%B %d, %Y')}"
 
     elif "joke" in command:
         response = pyjokes.get_joke()
@@ -33,7 +35,7 @@ def handle_command():
         try:
             result = eval(command)
             response = f"The result is {result}"
-        except:
+        except Exception:
             response = "Sorry, I couldn't solve that."
 
     elif command.startswith("play "):
