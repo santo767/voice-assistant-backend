@@ -1,73 +1,62 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import webbrowser
+import datetime
+import pyjokes
 import re
-import openai
+import math
 import os
-import time
 
 app = Flask(__name__)
 CORS(app)
 
-# 🔑 Put your real OpenAI API key here (keep it secret!)
-openai.api_key = "sk-..."
+def get_current_time():
+    now = datetime.datetime.now()
+    return now.strftime("The current time is %I:%M %p")
 
-@app.route("/")
-def home():
-    return jsonify({"message": "Voice Assistant Backend is running"})
+def get_current_date():
+    today = datetime.date.today()
+    return today.strftime("Today's date is %B %d, %Y")
+
+def tell_joke():
+    return pyjokes.get_joke()
+
+def solve_math(expression):
+    try:
+        # Replace words with symbols
+        expression = expression.lower().replace("plus", "+").replace("minus", "-").replace("into", "*").replace("by", "/")
+        result = eval(expression)
+        return f"The answer is {result}"
+    except:
+        return "Sorry, I couldn't calculate that."
+
+def needs_google_search(command):
+    keywords = ["who is", "what is", "how is", "how does", "what is meant by", "tell me", "search"]
+    return any(command.lower().startswith(k) for k in keywords)
 
 @app.route("/command", methods=["POST"])
 def handle_command():
     data = request.get_json()
     command = data.get("command", "").lower()
-    print("Received command:", command)
 
-    try:
-        # ✅ Greeting
-        if "my name is" in command:
-            name = command.split("my name is")[-1].strip().title()
-            return jsonify({"reply": f"Nice to meet you, {name}!"})
+    if "time" in command:
+        return jsonify(reply=get_current_time())
+    elif "date" in command:
+        return jsonify(reply=get_current_date())
+    elif "joke" in command:
+        return jsonify(reply=tell_joke())
+    elif re.search(r"\d+ [\+\-\*/] \d+", command) or any(op in command for op in ["plus", "minus", "into", "by"]):
+        return jsonify(reply=solve_math(command))
+    elif command.startswith("play"):
+        search_query = command.replace("play", "").strip().replace(" ", "+")
+        youtube_url = f"https://www.youtube.com/results?search_query={search_query}"
+        return jsonify(reply=f"Playing {search_query.replace('+', ' ')} on YouTube.", navigate=youtube_url)
+    elif needs_google_search(command):
+        search_query = command.replace("search", "").strip().replace(" ", "+")
+        google_url = f"https://www.google.com/search?q={search_query}"
+        return jsonify(reply="Let me search that for you.", navigate=google_url)
+    else:
+        return jsonify(reply="I'm not sure, let me search that for you.", navigate=f"https://www.google.com/search?q={command.replace(' ', '+')}")
 
-        # ✅ Play on YouTube
-        elif command.startswith("play"):
-            query = command.replace("play", "").strip()
-            webbrowser.open(f"https://www.youtube.com/results?search_query={query}")
-            return jsonify({"reply": f"Playing {query} on YouTube."})
-
-        # ✅ Google Search (for questions like who, what, how, etc.)
-        elif command.startswith(("who is", "what is", "how is", "how does", "what is meant by", "tell me")):
-            webbrowser.open(f"https://www.google.com/search?q={command}")
-            return jsonify({"reply": f"Searching Google for: {command}"})
-
-        # ✅ GPT response
-        elif command.startswith("use gpt"):
-            prompt = command.replace("use gpt", "").strip()
-            response = openai.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=150
-            )
-            gpt_reply = response.choices[0].message.content.strip()
-            return jsonify({"reply": gpt_reply})
-
-        # ✅ Math calculation (basic)
-        elif re.match(r"^[\d\s\+\-\*\/\.\(\)]+$", command):
-            try:
-                result = eval(command)
-                return jsonify({"reply": f"The answer is {result}"})
-            except:
-                return jsonify({"reply": "I couldn't solve that math expression."})
-
-        # ❌ Unknown command fallback
-        else:
-            webbrowser.open(f"https://www.google.com/search?q={command}")
-            return jsonify({"reply": f"I'm not sure, but I searched Google for: {command}"})
-
-    except Exception as e:
-        print("Error:", e)
-        return jsonify({"reply": "⚠️ An error occurred while processing your request."})
-
-# ✅ For Render (Production) - Use waitress server
 if __name__ == "__main__":
     from waitress import serve
-    serve(app, host="0.0.0.0", port=10000)
+    serve(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
