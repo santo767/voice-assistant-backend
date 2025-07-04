@@ -6,208 +6,45 @@ import re
 import pyjokes
 import pytz
 import math
-from googletrans import Translator
+import requests
+import random
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 app.secret_key = "your_very_secure_secret_key"
 
-# Initialize translator
-translator = Translator()
-
-# Supported app URIs for mobile
+# App URIs for mobile/web
 APP_URIS = {
-    "whatsapp": {
-        "uri": "whatsapp://send",
-        "web": "https://web.whatsapp.com"
-    },
-    "chatgpt": {
-        "uri": "https://chat.openai.com",
-        "web": "https://chat.openai.com"
-    },
-    "facebook": {
-        "uri": "fb://facewebmodal/f?href=https://facebook.com",
-        "web": "https://facebook.com"
-    },
-    "vlc": {
-        "uri": "vlc://",
-        "web": "https://www.videolan.org/vlc/"
-    },
-    "filemanager": {
-        "uri": "file:///sdcard/",
-        "web": "file:///sdcard/"
-    },
-    "calculator": {
-        "uri": "calculator://",
-        "web": "https://www.google.com/search?q=calculator"
-    },
-    "instagram": {
-        "uri": "instagram://user?username=",
-        "web": "https://www.instagram.com"
-    },
-    "youtube": {
-        "uri": "vnd.youtube://",
-        "web": "https://www.youtube.com"
-    },
-    "google": {
-        "uri": "https://www.google.com",
-        "web": "https://www.google.com"
-    }
+    "whatsapp": {"uri": "whatsapp://send", "web": "https://web.whatsapp.com"},
+    "chatgpt": {"uri": "https://chat.openai.com", "web": "https://chat.openai.com"},
+    "facebook": {"uri": "fb://facewebmodal/f?href=https://facebook.com", "web": "https://facebook.com"},
+    "vlc": {"uri": "vlc://", "web": "https://www.videolan.org/vlc/"},
+    "filemanager": {"uri": "file:///sdcard/", "web": "file:///sdcard/"},
+    "calculator": {"uri": "calculator://", "web": "https://www.google.com/search?q=calculator"},
+    "instagram": {"uri": "instagram://user?username=", "web": "https://www.instagram.com"},
+    "youtube": {"uri": "vnd.youtube://", "web": "https://www.youtube.com"},
+    "google": {"uri": "https://www.google.com", "web": "https://www.google.com"}
 }
 
-MULTILINGUAL_RESPONSES = {
-    'greeting': {
-        'en': "Hello {name}! How can I help you?",
-        'hi': "नमस्ते {name}! मैं आपकी कैसे सहायता कर सकता हूं?",
-        'ta': "வணக்கம் {name}! நான் உங்களுக்கு எப்படி உதவ முடியும்?",
-        'te': "నమస్కారం {name}! నేను మీకు ఎలా సహాయం చేయగలను?",
-        'ml': "ഹലോ {name}! എനിക്ക് നിങ്ങളെ എങ്ങനെ സഹായിക്കാം?",
-        'kn': "ಹಲೋ {name}! ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಬಹುದು?",
-        'ur': "السلام علیکم {name}! میں آپ کی کیسے مدد کر سکتا ہوں؟",
-        'ja': "こんにちは {name}！どのようにお手伝いできますか？"
-    },
-    'time_response': {
-        'en': "{name}, the current time is",
-        'hi': "{name}, वर्तमान समय है",
-        'ta': "{name}, தற்போதைய நேரம்",
-        'te': "{name}, ప్రస్తుత సమయం",
-        'ml': "{name}, നിലവിലെ സമയം",
-        'kn': "{name}, ಪ್ರಸ್ತುತ ಸಮಯ",
-        'ur': "{name}, موجودہ وقت ہے",
-        'ja': "{name}、現在の時刻は"
-    },
-    'date_response': {
-        'en': "{name}, today's date is",
-        'hi': "{name}, आज की तारीख है",
-        'ta': "{name}, இன்றைய தேதி",
-        'te': "{name}, నేటి తేదీ",
-        'ml': "{name}, ഇന്നത്തെ തീയതി",
-        'kn': "{name}, ಇಂದಿನ ದಿನಾಂಕ",
-        'ur': "{name}, آج کی تاریخ ہے",
-        'ja': "{name}、今日の日付は"
-    },
-    'math_result': {
-        'en': "{name}, the result is",
-        'hi': "{name}, परिणाम है",
-        'ta': "{name}, முடிவு",
-        'te': "{name}, ఫలితం",
-        'ml': "{name}, ഫലം",
-        'kn': "{name}, ಫಲಿತಾಂಶ",
-        'ur': "{name}, نتیجہ ہے",
-        'ja': "{name}、結果は"
-    },
-    'app_opening': {
-        'en': "{name}, opening {app} for you.",
-        'hi': "{name}, {app} खोल रहा हूं।",
-        'ta': "{name}, உங்களுக்காக {app} ஐ திறக்கிறேன்.",
-        'te': "{name}, మీ కోసం {app} ను తెరుస్తున్నాను.",
-        'ml': "{name}, നിങ്ങൾക്കായി {app} തുറക്കുന്നു.",
-        'kn': "{name}, ನಿಮಗಾಗಿ {app} ಅನ್ನು ತೆರೆಯುತ್ತಿದ್ದೇನೆ.",
-        'ur': "{name}, آپ کے لیے {app} کھول رہا ہوں۔",
-        'ja': "{name}、あなたのために{app}を開いています。"
-    },
-    'location_response': {
-        'en': "{name}, here's the location of {location} on Google Maps.",
-        'hi': "{name}, यहाँ Google Maps पर {location} का स्थान है।",
-        'ta': "{name}, Google Maps இல் {location} இன் இருப்பிடம் இதோ.",
-        'te': "{name}, Google Maps లో {location} యొక్క స్థానం ఇదిగో.",
-        'ml': "{name}, Google Maps ൽ {location} ന്റെ സ്ഥാനം ഇതാ.",
-        'kn': "{name}, Google Maps ನಲ್ಲಿ {location} ಅವರ ಸ್ಥಾನ ಇದು.",
-        'ur': "{name}, Google Maps پر {location} کا مقام یہ ہے۔",
-        'ja': "{name}、Google Mapsでの{location}の場所です。"
-    },
-    'current_location_response': {
-        'en': "{name}, I can't access your current location directly. Please share your location from your device.",
-        'hi': "{name}, मैं सीधे आपका वर्तमान स्थान एक्सेस नहीं कर सकता। कृपया अपने डिवाइस से अपना स्थान साझा करें।",
-        'ta': "{name}, நான் நேரடியாக உங்கள் தற்போதைய இடத்தை அணுக முடியாது. உங்கள் சாதனத்தில் இருந்து உங்கள் இடத்தை பகிரவும்.",
-        'te': "{name}, నేను నేరుగా మీ ప్రస్తుత స్థానాన్ని యాక్సెస్ చేయలేను. దయచేసి మీ పరికరం నుండి మీ స్థానాన్ని పంచుకోండి.",
-        'ml': "{name}, ഞാൻ നേരിട്ട് നിങ്ങളുടെ നിലവിലെ സ്ഥാനം ആക്സസ് ചെയ്യാൻ കഴിയില്ല. നിങ്ങളുടെ ഉപകരണത്തിൽ നിന്നുള്ള സ്ഥലം പങ്കിടുക.",
-        'kn': "{name}, ನಾನು ನೇರವಾಗಿ ನಿಮ್ಮ ಪ್ರಸ್ತುತ ಸ್ಥಳವನ್ನು ಪ್ರವೇಶಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಾಧನದಿಂದ ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ.",
-        'ur': "{name}, میں آپ کا موجودہ مقام براہ راست حاصل نہیں کر سکتا۔ براہ کرم اپنے آلے سے اپنا مقام شیئر کریں۔",
-        'ja': "{name}、私はあなたの現在地に直接アクセスできません。デバイスから位置情報を共有してください。"
-    },
-    'play_response': {
-        'en': "{name}, playing {topic} on YouTube.",
-        'hi': "{name}, YouTube पर {topic} चला रहा है।",
-        'ta': "{name}, YouTube இல் {topic} ஐ இயக்குகிறது.",
-        'te': "{name}, YouTube లో {topic} ను ప్లే చేస్తోంది.",
-        'ml': "{name}, YouTube ൽ {topic} പ്ലേ ചെയ്യുന്നു.",
-        'kn': "{name}, YouTube ನಲ್ಲಿ {topic} ಅನ್ನು ಪ್ಲೇ ಮಾಡುತ್ತಿದೆ.",
-        'ur': "{name}, YouTube پر {topic} چل رہا ہے۔",
-        'ja': "{name}、YouTubeで{topic}を再生しています。"
-    },
-    'search_response': {
-        'en': "{name}, here's what I found for '{query}' on Google.",
-        'hi': "{name}, यहाँ Google पर '{query}' के लिए मुझे जो मिला है।",
-        'ta': "{name}, Google இல் '{query}' க்காக நான் கண்டறிந்தது இது.",
-        'te': "{name}, Google లో '{query}' కోసం నేను కనుగొన్నది ఇది.",
-        'ml': "{name}, Google ൽ '{query}' നു വേണ്ടി ഞാൻ കണ്ടെത്തിയത് ഇതാ.",
-        'kn': "{name}, Google ನಲ್ಲಿ '{query}' ಗಾಗಿ ನಾನು ಕಂಡುಕೊಂಡಿದ್ದು ಇದು.",
-        'ur': "{name}, یہ وہ ہے جو میں نے Google پر '{query}' کے لیے پایا ہے۔",
-        'ja': "{name}、Googleで'{query}'について見つけたものです。"
-    },
-    'default_response': {
-        'en': "{name}, I'm not sure how to respond to that.",
-        'hi': "{name}, मुझे नहीं पता कि इसका क्या जवाब दूँ।",
-        'ta': "{name}, அதற்கு எப்படி பதிலளிப்பது என்று எனக்குத் தெரியவில்லை.",
-        'te': "{name}, దానికి ఎలా స్పందించాలో నాకు తెలియదు.",
-        'ml': "{name}, അതിനോട് എങ്ങനെ പ്രതികരിക്കണമെന്ന് എനിക്കറിയില്ല.",
-        'kn': "{name}, ಅದಕ್ಕೆ ಹೇಗೆ ಪ್ರತಿಕ್ರಿಯಿಸಬೇಕು ಎಂದು ನನಗೆ ತಿಳಿದಿಲ್ಲ.",
-        'ur': "{name}, مجھے نہیں معلوم کہ اس کا کیا جواب دوں۔",
-        'ja': "{name}、それにどう答えたらいいかわかりません。"
-    },
-    'math_error': {
-        'en': "{name}, sorry, I couldn't solve that mathematical expression.",
-        'hi': "{name}, क्षमा करें, मैं उस गणितीय अभिव्यक्ति को हल नहीं कर सका।",
-        'ta': "{name}, மன்னிக்கவும், அந்த கணித வெளிப்பாட்டை என்னால் தீர்க்க முடியவில்லை.",
-        'te': "{name}, క్షమించండి, ఆ గణిత వ్యక్తీకరణను నేను పరిష్కరించలేకపోయాను.",
-        'ml': "{name}, ക്ഷമിക്കണം, ആ ഗണിത പ്രയോഗം എനിക്ക് പരിഹരിക്കാൻ കഴിഞ്ഞില്ല.",
-        'kn': "{name}, ಕ್ಷಮಿಸಿ, ಆ ಗಣಿತದ ಅಭಿವ್ಯಕ್ತಿಯನ್ನು ನನಗೆ ಪರಿಹರಿಸಲಾಗಲಿಲ್ಲ.",
-        'ur': "{name}, معذرت، میں اس ریاضی کی تعبیر کو حل نہیں کر سکا۔",
-        'ja': "{name}、申し訳ございませんが、その数式を解くことができませんでした。"
-    },
-    'location_error': {
-        'en': "{name}, please specify a location to search for.",
-        'hi': "{name}, कृपया खोजने के लिए कोई स्थान निर्दिष्ट करें।",
-        'ta': "{name}, தேடுவதற்கான இடத்தைக் குறிப்பிடவும்.",
-        'te': "{name}, దయచేసి వెతకడానికి ఒక స్థానాన్ని పేర్కొనండి.",
-        'ml': "{name}, ദയവായി തിരയാൻ ഒരു സ്ഥലം വ്യക്തമാക്കുക.",
-        'kn': "{name}, ದಯವಿಟ್ಟು ಹುಡುಕಲು ಒಂದು ಸ್ಥಳವನ್ನು ನಿರ್ದಿಷ್ಟಪಡಿಸಿ.",
-        'ur': "{name}, براہ کرم تلاش کرنے کے لیے کوئی مقام بتائیں۔",
-        'ja': "{name}、検索する場所を指定してください。"
-    },
-    'joke_response': {
-        'en': "{name}, here's a joke for you: {joke}",
-        'hi': "{name}, यहाँ आपके लिए एक चुटकुला है: {joke}",
-        'ta': "{name}, உங்களுக்கான ஒரு நகைச்சுவை: {joke}",
-        'te': "{name}, మీ కోసం ఒక జోక్: {joke}",
-        'ml': "{name}, നിങ്ങൾക്കുള്ള ഒരു തമാശ: {joke}",
-        'kn': "{name}, ನಿಮಗಾಗಿ ಒಂದು ಜೋಕ್: {joke}",
-        'ur': "{name}, آپ کے لیے ایک لطیفہ: {joke}",
-        'ja': "{name}、あなたのためのジョーク: {joke}"
-    }
-}
+# Fun facts list
+FUN_FACTS = [
+    "Honey never spoils. Archaeologists have found edible honey in ancient Egyptian tombs.",
+    "Bananas are berries, but strawberries are not.",
+    "A day on Venus is longer than a year on Venus.",
+    "Octopuses have three hearts.",
+    "The Eiffel Tower can be 15 cm taller during hot days."
+]
 
-def get_user_name(command, detected_lang):
-    # Check for explicit name in the request (preferred for mobile apps)
+def get_user_name(command):
     data = request.get_json(silent=True) or {}
     name = data.get("name")
     if name:
         session['user_name'] = name
         return name
-    # Otherwise, try to extract from command
     patterns = [
         r"my name is ([\w\s]+)",
         r"i am ([\w\s]+)",
-        r"i'm ([\w\s]+)",
-        r"मेरा नाम ([\w\s]+) है",
-        r"मैं ([\w\s]+) हूँ",
-        r"நான் ([\w\s]+) என்று",
-        r"నా పేరు ([\w\s]+)",
-        r"എന്റെ പേര് ([\w\s]+)",
-        r"ನನ್ನ ಹೆಸರು ([\w\s]+)",
-        r"میرا نام ([\w\s]+) ہے",
-        r"私の名前は([\w\s]+)です"
+        r"i'm ([\w\s]+)"
     ]
     for pat in patterns:
         match = re.search(pat, command, re.IGNORECASE)
@@ -215,136 +52,30 @@ def get_user_name(command, detected_lang):
             name_candidate = match.group(1).strip().split()[0]
             session['user_name'] = name_candidate
             return name_candidate
-    # Otherwise, try session
     if 'user_name' in session:
         return session['user_name']
-    # Default fallback
-    return {
-        'en': "Friend", 'hi': "मित्र", 'ta': "நண்பர்", 'te': "స్నేహితుడు",
-        'ml': "സുഹൃത്ത്", 'kn': "ಸ್ನೇಹಿತ", 'ur': "دوست", 'ja': "友達"
-    }.get(detected_lang, "Friend")
+    return "Friend"
 
-def detect_and_translate(text):
-    try:
-        detection = translator.detect(text)
-        detected_lang = detection.lang
-        confidence = detection.confidence
-        return text, detected_lang
-    except Exception as e:
-        print(f"Translation error: {e}")
-        return text, 'en'
-
-def translate_response(text, target_lang):
-    if target_lang == 'en':
-        return text
-    try:
-        translated = translator.translate(text, src='en', dest=target_lang)
-        return translated.text
-    except Exception as e:
-        print(f"Response translation error: {e}")
-        return text
-
-def get_localized_response(response_key, lang, name, **kwargs):
-    template = MULTILINGUAL_RESPONSES.get(response_key, {}).get(lang) or MULTILINGUAL_RESPONSES[response_key]['en']
-    return template.format(name=name, **kwargs)
-
-@app.route("/command", methods=["POST"])
-def handle_command():
-    data = request.get_json()
-    original_command = data.get("command", "")
-    translated_command, detected_lang = detect_and_translate(original_command)
-    command = translated_command.lower()
-    name = get_user_name(original_command, detected_lang)
-    response = get_localized_response('default_response', detected_lang, name)
-    navigate = None
-
-    # App opening with mobile URI preference
-    for app in APP_URIS.keys():
-        if f"open {app}" in command or f"launch {app}" in command:
-            app_name = app.capitalize() if app != "filemanager" else "File Manager"
-            uri = APP_URIS[app]["uri"]
-            web = APP_URIS[app]["web"]
-            # Let frontend choose: send both uri and web
-            navigate = {"uri": uri, "web": web}
-            response = get_localized_response('app_opening', detected_lang, name, app=app_name)
-            break
-
-    # Greetings
-    if any(greet in command for greet in [
-        "hello", "hi", "hey", "good morning", "good evening", "namaste", "vanakkam"
-    ]):
-        response = get_localized_response('greeting', detected_lang, name)
-
-    # Time query
-    elif "time" in command:
-        india_time = datetime.datetime.now(pytz.timezone('Asia/Kolkata'))
-        time_str = india_time.strftime('%I:%M %p')
-        time_response = get_localized_response('time_response', detected_lang, name)
-        response = f"{time_response} {time_str}"
-
-    # Date query
-    elif "date" in command:
-        india_date = datetime.datetime.now(pytz.timezone('Asia/Kolkata'))
-        date_str = india_date.strftime('%B %d, %Y')
-        date_response = get_localized_response('date_response', detected_lang, name)
-        response = f"{date_response} {date_str}"
-
-    # Joke request
-    elif "joke" in command:
-        joke = pyjokes.get_joke()
-        if detected_lang != 'en':
-            joke = translate_response(joke, detected_lang)
-        response = get_localized_response('joke_response', detected_lang, name, joke=joke)
-
-    # Math
-    elif any(math_keyword in command for math_keyword in [
-        "calculate", "compute", "solve", "math", "square root", "sin", "cos", "tan", "log", "factorial", "power", "sqrt"
-    ]) or re.search(r"[\d+\-*/.^%]+", command):
-        try:
-            result = solve_complex_math(command)
-            if result is not None:
-                math_response = get_localized_response('math_result', detected_lang, name)
-                response = f"{math_response} {result}"
-            else:
-                response = get_localized_response('math_error', detected_lang, name)
-        except Exception as e:
-            print(f"Math error: {e}")
-            response = get_localized_response('math_error', detected_lang, name)
-
-    # Location features
-    elif any(location_keyword in command for location_keyword in [
-        "where is", "location of", "find location", "where can i find", "directions to", "how to get to", "where does", "located"
-    ]):
-        if any(phrase in command for phrase in ["my location", "current location", "where am i", "where am I"]):
-            response = get_localized_response('current_location_response', detected_lang, name)
-            navigate = None
-        else:
-            location_query = extract_location_query(command)
-            if location_query:
-                response = get_localized_response('location_response', detected_lang, name, location=location_query)
-                navigate = f"https://www.google.com/maps/search/{location_query.replace(' ', '+')}"
-            else:
-                response = get_localized_response('location_error', detected_lang, name)
-
-    # Play command for YouTube
-    elif command.startswith("play "):
-        topic = command.replace("play", "").strip()
-        response = get_localized_response('play_response', detected_lang, name, topic=topic)
-        navigate = f"https://www.youtube.com/results?search_query={topic.replace(' ', '+')}"
-
-    # Search queries
-    elif command.startswith((
-        "what is", "who is", "how does", "how is", "tell me", "search", "define", "explain", "what do you mean by", "what's"
-    )):
-        query = command
-        response = get_localized_response('search_response', detected_lang, name, query=query)
-        navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-
-    # Always translate response back to user's language if needed
-    if detected_lang != 'en':
-        response = translate_response(response, detected_lang)
-
-    return jsonify({"reply": response, "navigate": navigate})
+def get_response(response_key, name, **kwargs):
+    RESPONSES = {
+        'greeting': f"Hello {name}! How can I help you?",
+        'time_response': f"{name}, the current time is",
+        'date_response': f"{name}, today's date is",
+        'math_result': f"{name}, the result is",
+        'app_opening': f"{name}, opening {kwargs.get('app','the app')} for you.",
+        'location_response': f"{name}, here's the location of {kwargs.get('location','the place')} on Google Maps.",
+        'current_location_response': f"{name}, I can't access your current location directly. Please share your location from your device.",
+        'play_response': f"{name}, playing {kwargs.get('topic','your request')} on YouTube.",
+        'search_response': f"{name}, here's what I found for '{kwargs.get('query','your query')}' on Google.",
+        'default_response': f"{name}, I'm not sure how to respond to that.",
+        'math_error': f"{name}, sorry, I couldn't solve that mathematical expression.",
+        'location_error': f"{name}, please specify a location to search for.",
+        'joke_response': f"{name}, here's a joke for you: {kwargs.get('joke','')}",
+        'weather_response': f"{name}, the weather in {kwargs.get('city','your city')} is {kwargs.get('weather','unavailable')}.",
+        'reminder_set': f"{name}, reminder set: {kwargs.get('reminder','')}",
+        'fun_fact': f"{name}, did you know? {kwargs.get('fact','')}"
+    }
+    return RESPONSES.get(response_key, RESPONSES['default_response'])
 
 def extract_location_query(command):
     location_keywords = [
@@ -360,7 +91,6 @@ def extract_location_query(command):
 
 def solve_complex_math(command):
     cmd = command.lower()
-    # Handle sqrt and square root
     if "square root" in cmd or "sqrt" in cmd:
         match = re.search(r'(?:square root of|sqrt of|sqrt)\s*(\d+(?:\.\d+)?)', cmd)
         if not match:
@@ -368,7 +98,6 @@ def solve_complex_math(command):
         if match:
             num = float(match.group(1))
             return round(math.sqrt(num), 6)
-    # Trigonometric functions
     if "sin" in cmd:
         match = re.search(r'sin\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
         if match:
@@ -384,28 +113,24 @@ def solve_complex_math(command):
         if match:
             angle = float(match.group(1))
             return round(math.tan(math.radians(angle)), 6)
-    # Logarithm
     if "log" in cmd:
         match = re.search(r'log\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
         if match:
             num = float(match.group(1))
             if num > 0:
                 return round(math.log(num), 6)
-    # Factorial
     if "factorial" in cmd:
         match = re.search(r'factorial\s*(?:of\s*)?(\d+)', cmd)
         if match:
             num = int(match.group(1))
             if 0 <= num <= 20:
                 return math.factorial(num)
-    # Power operations
     if "power" in cmd or "raised to" in cmd:
         match = re.search(r'(\d+(?:\.\d+)?)\s*(?:to the power of|raised to|power)\s*(\d+(?:\.\d+)?)', cmd)
         if match:
             base = float(match.group(1))
             exponent = float(match.group(2))
             return round(math.pow(base, exponent), 6)
-    # Basic arithmetic
     replacements = {
         "calculate": "",
         "compute": "",
@@ -440,6 +165,131 @@ def solve_complex_math(command):
                 print(f"Eval error: {e}")
                 return None
     return None
+
+# Weather API (OpenWeatherMap, free tier)
+def get_weather(city):
+    API_KEY = "your_openweathermap_api_key"  # <-- Replace with your API key
+    if not city:
+        return "City not specified"
+    try:
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+        resp = requests.get(url)
+        data = resp.json()
+        if data.get("weather"):
+            desc = data["weather"][0]["description"]
+            temp = data["main"]["temp"]
+            return f"{desc}, {temp}°C"
+        else:
+            return "Weather data unavailable"
+    except Exception as e:
+        return "Weather data unavailable"
+
+@app.route("/command", methods=["POST"])
+def handle_command():
+    data = request.get_json()
+    original_command = data.get("command", "")
+    command = original_command.lower()
+    name = get_user_name(original_command)
+    response = get_response('default_response', name)
+    navigate = None
+
+    # App opening
+    for app in APP_URIS.keys():
+        if f"open {app}" in command or f"launch {app}" in command:
+            app_name = app.capitalize() if app != "filemanager" else "File Manager"
+            uri = APP_URIS[app]["uri"]
+            web = APP_URIS[app]["web"]
+            navigate = {"uri": uri, "web": web}
+            response = get_response('app_opening', name, app=app_name)
+            break
+
+    # Greetings
+    if any(greet in command for greet in [
+        "hello", "hi", "hey", "good morning", "good evening"
+    ]):
+        response = get_response('greeting', name)
+
+    # Time query
+    elif "time" in command:
+        india_time = datetime.datetime.now(pytz.timezone('Asia/Kolkata'))
+        time_str = india_time.strftime('%I:%M %p')
+        time_response = get_response('time_response', name)
+        response = f"{time_response} {time_str}"
+
+    # Date query
+    elif "date" in command:
+        india_date = datetime.datetime.now(pytz.timezone('Asia/Kolkata'))
+        date_str = india_date.strftime('%B %d, %Y')
+        date_response = get_response('date_response', name)
+        response = f"{date_response} {date_str}"
+
+    # Joke request
+    elif "joke" in command:
+        joke = pyjokes.get_joke()
+        response = get_response('joke_response', name, joke=joke)
+
+    # Fun fact
+    elif "fun fact" in command or "tell me something interesting" in command:
+        fact = random.choice(FUN_FACTS)
+        response = get_response('fun_fact', name, fact=fact)
+
+    # Reminder
+    elif "remind me to" in command or "set a reminder" in command:
+        reminder = re.sub(r".*remind me to |.*set a reminder (for|to)?", "", command, flags=re.IGNORECASE).strip()
+        response = get_response('reminder_set', name, reminder=reminder)
+
+    # Weather
+    elif "weather" in command:
+        city_match = re.search(r"weather in ([\w\s]+)", command)
+        city = city_match.group(1).strip() if city_match else "Delhi"
+        weather = get_weather(city)
+        response = get_response('weather_response', name, city=city, weather=weather)
+
+    # Math
+    elif any(math_keyword in command for math_keyword in [
+        "calculate", "compute", "solve", "math", "square root", "sin", "cos", "tan", "log", "factorial", "power", "sqrt"
+    ]) or re.search(r"[\d+\-*/.^%]+", command):
+        try:
+            result = solve_complex_math(command)
+            if result is not None:
+                math_response = get_response('math_result', name)
+                response = f"{math_response} {result}"
+            else:
+                response = get_response('math_error', name)
+        except Exception as e:
+            print(f"Math error: {e}")
+            response = get_response('math_error', name)
+
+    # Location features
+    elif any(location_keyword in command for location_keyword in [
+        "where is", "location of", "find location", "where can i find", "directions to", "how to get to", "where does", "located"
+    ]):
+        if any(phrase in command for phrase in ["my location", "current location", "where am i", "where am I"]):
+            response = get_response('current_location_response', name)
+            navigate = None
+        else:
+            location_query = extract_location_query(command)
+            if location_query:
+                response = get_response('location_response', name, location=location_query)
+                navigate = f"https://www.google.com/maps/search/{location_query.replace(' ', '+')}"
+            else:
+                response = get_response('location_error', name)
+
+    # Play command for YouTube
+    elif command.startswith("play "):
+        topic = command.replace("play", "").strip()
+        response = get_response('play_response', name, topic=topic)
+        navigate = f"https://www.youtube.com/results?search_query={topic.replace(' ', '+')}"
+
+    # Search queries
+    elif command.startswith((
+        "what is", "who is", "how does", "how is", "tell me", "search", "define", "explain", "what do you mean by", "what's"
+    )):
+        query = command
+        response = get_response('search_response', name, query=query)
+        navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+
+    return jsonify({"reply": response, "navigate": navigate})
 
 @app.route("/", methods=["GET"])
 def home():
