@@ -10,12 +10,12 @@ from googletrans import Translator
 
 app = Flask(__name__)
 CORS(app)
-app.secret_key = "your_secret_key_here"  # Needed for session
+app.secret_key = "your_secure_secret_key_here"  # Replace with a secure secret key
 
 # Initialize translator
 translator = Translator()
 
-# Multilingual greetings and responses with name placeholders
+# Multilingual responses with {name} placeholder
 MULTILINGUAL_RESPONSES = {
     'greeting': {
         'en': "Hello {name}! How can I help you?",
@@ -58,44 +58,54 @@ MULTILINGUAL_RESPONSES = {
         'ja': "{name}、結果は"
     },
     'app_opening': {
-        'en': "{name}, opening {} for you",
-        'hi': "{name}, {} खोल रहा हूं",
-        'ta': "{name}, உங்களுக்காக {} ஐ திறக்கிறேன்",
-        'te': "{name}, మీ కోసం {} ను తెరుస్తున్నాను",
-        'ml': "{name}, നിങ്ങൾക്കായി {} തുറക്കുന്നു",
-        'kn': "{name}, ನಿಮಗಾಗಿ {} ಅನ್ನು ತೆರೆಯುತ್ತಿದ್ದೇನೆ",
-        'ur': "{name}, آپ کے لیے {} کھول رہا ہوں",
-        'ja': "{name}、あなたのために{}を開いています"
+        'en': "{name}, opening {app} for you",
+        'hi': "{name}, {app} खोल रहा हूं",
+        'ta': "{name}, உங்களுக்காக {app} ஐ திறக்கிறேன்",
+        'te': "{name}, మీ కోసం {app} ను తెరుస్తున్నాను",
+        'ml': "{name}, നിങ്ങൾക്കായി {app} തുറക്കുന്നു",
+        'kn': "{name}, ನಿಮಗಾಗಿ {app} ಅನ್ನು ತೆರೆಯುತ್ತಿದ್ದೇನೆ",
+        'ur': "{name}, آپ کے لیے {app} کھول رہا ہوں",
+        'ja': "{name}、あなたのために{app}を開いています"
     },
     'location_response': {
-        'en': "{name}, here's the location of {} on Google Maps.",
-        'hi': "{name}, यहाँ Google Maps पर {} का स्थान है।",
-        'ta': "{name}, Google Maps இல் {} இன் இருப்பிடம் இதோ.",
-        'te': "{name}, Google Maps లో {} యొక్క స్థానం ఇదిగో.",
-        'ml': "{name}, Google Maps ൽ {} ന്റെ സ്ഥാനം ഇതാ.",
-        'kn': "{name}, Google Maps ನಲ್ಲಿ {} ಅವರ ಸ್ಥಾನ ಇದು.",
-        'ur': "{name}, Google Maps پر {} کا مقام یہ ہے۔",
-        'ja': "{name}、Google Mapsでの{}の場所です。"
+        'en': "{name}, here's the location of {location} on Google Maps.",
+        'hi': "{name}, यहाँ Google Maps पर {location} का स्थान है।",
+        'ta': "{name}, Google Maps இல் {location} இன் இருப்பிடம் இதோ.",
+        'te': "{name}, Google Maps లో {location} యొక్క స్థానం ఇదిగో.",
+        'ml': "{name}, Google Maps ൽ {location} ന്റെ സ്ഥാനം ഇതാ.",
+        'kn': "{name}, Google Maps ನಲ್ಲಿ {location} ಅವರ ಸ್ಥಾನ ಇದು.",
+        'ur': "{name}, Google Maps پر {location} کا مقام یہ ہے۔",
+        'ja': "{name}、Google Mapsでの{location}の場所です。"
+    },
+    'current_location_response': {
+        'en': "{name}, I can't access your current location directly. Please share your location from your device.",
+        'hi': "{name}, मैं सीधे आपका वर्तमान स्थान एक्सेस नहीं कर सकता। कृपया अपने डिवाइस से अपना स्थान साझा करें।",
+        'ta': "{name}, நான் நேரடியாக உங்கள் தற்போதைய இடத்தை அணுக முடியாது. உங்கள் சாதனத்தில் இருந்து உங்கள் இடத்தை பகிரவும்.",
+        'te': "{name}, నేను నేరుగా మీ ప్రస్తుత స్థానాన్ని యాక్సెస్ చేయలేను. దయచేసి మీ పరికరం నుండి మీ స్థానాన్ని పంచుకోండి.",
+        'ml': "{name}, ഞാൻ നേരിട്ട് നിങ്ങളുടെ നിലവിലെ സ്ഥാനം ആക്സസ് ചെയ്യാൻ കഴിയില്ല. നിങ്ങളുടെ ഉപകരണത്തിൽ നിന്നുള്ള സ്ഥലം പങ്കിടുക.",
+        'kn': "{name}, ನಾನು ನೇರವಾಗಿ ನಿಮ್ಮ ಪ್ರಸ್ತುತ ಸ್ಥಳವನ್ನು ಪ್ರವೇಶಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಾಧನದಿಂದ ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ.",
+        'ur': "{name}, میں آپ کا موجودہ مقام براہ راست حاصل نہیں کر سکتا۔ براہ کرم اپنے آلے سے اپنا مقام شیئر کریں۔",
+        'ja': "{name}、私はあなたの現在地に直接アクセスできません。デバイスから位置情報を共有してください。"
     },
     'play_response': {
-        'en': "{name}, playing {} on YouTube.",
-        'hi': "{name}, YouTube पर {} चला रहा है।",
-        'ta': "{name}, YouTube இல் {} ஐ இயக்குகிறது.",
-        'te': "{name}, YouTube లో {} ను ప్లే చేస్తోంది.",
-        'ml': "{name}, YouTube ൽ {} പ്ലേ ചെയ്യുന്നു.",
-        'kn': "{name}, YouTube ನಲ್ಲಿ {} ಅನ್ನು ಪ್ಲೇ ಮಾಡುತ್ತಿದೆ.",
-        'ur': "{name}, YouTube پر {} چل رہا ہے۔",
-        'ja': "{name}、YouTubeで{}を再生しています。"
+        'en': "{name}, playing {topic} on YouTube.",
+        'hi': "{name}, YouTube पर {topic} चला रहा है।",
+        'ta': "{name}, YouTube இல் {topic} ஐ இயக்குகிறது.",
+        'te': "{name}, YouTube లో {topic} ను ప్లే చేస్తోంది.",
+        'ml': "{name}, YouTube ൽ {topic} പ്ലേ ചെയ്യുന്നു.",
+        'kn': "{name}, YouTube ನಲ್ಲಿ {topic} ಅನ್ನು ಪ್ಲೇ ಮಾಡುತ್ತಿದೆ.",
+        'ur': "{name}, YouTube پر {topic} چل رہا ہے۔",
+        'ja': "{name}、YouTubeで{topic}を再生しています。"
     },
     'search_response': {
-        'en': "{name}, here's what I found for '{}' on Google.",
-        'hi': "{name}, यहाँ Google पर '{}' के लिए मुझे जो मिला है।",
-        'ta': "{name}, Google இல் '{}' க்காக நான் கண்டறிந்தது இது.",
-        'te': "{name}, Google లో '{}' కోసం నేను కనుగొన్నది ఇది.",
-        'ml': "{name}, Google ൽ '{}' നു വേണ്ടി ഞാൻ കണ്ടെത്തിയത് ഇതാ.",
-        'kn': "{name}, Google ನಲ್ಲಿ '{}' ಗಾಗಿ ನಾನು ಕಂಡುಕೊಂಡಿದ್ದು ಇದು.",
-        'ur': "{name}, یہ وہ ہے جو میں نے Google پر '{}' کے لیے پایا ہے۔",
-        'ja': "{name}、Googleで'{}'について見つけたものです。"
+        'en': "{name}, here's what I found for '{query}' on Google.",
+        'hi': "{name}, यहाँ Google पर '{query}' के लिए मुझे जो मिला है।",
+        'ta': "{name}, Google இல் '{query}' க்காக நான் கண்டறிந்தது இது.",
+        'te': "{name}, Google లో '{query}' కోసం నేను కనుగొన్నది ఇది.",
+        'ml': "{name}, Google ൽ '{query}' നു വേണ്ടി ഞാൻ കണ്ടെത്തിയത് ഇതാ.",
+        'kn': "{name}, Google ನಲ್ಲಿ '{query}' ಗಾಗಿ ನಾನು ಕಂಡುಕೊಂಡಿದ್ದು ಇದು.",
+        'ur': "{name}, یہ وہ ہے جو میں نے Google پر '{query}' کے لیے پایا ہے۔",
+        'ja': "{name}、Googleで'{query}'について見つけたものです。"
     },
     'default_response': {
         'en': "{name}, I'm not sure how to respond to that.",
@@ -128,22 +138,35 @@ MULTILINGUAL_RESPONSES = {
         'ja': "{name}、検索する場所を指定してください。"
     },
     'joke_response': {
-        'en': "{name}, here's a joke for you: {}",
-        'hi': "{name}, यहाँ आपके लिए एक चुटकुला है: {}",
-        'ta': "{name}, உங்களுக்கான ஒரு நகைச்சுவை: {}",
-        'te': "{name}, మీ కోసం ఒక జోక్: {}",
-        'ml': "{name}, നിങ്ങൾക്കുള്ള ഒരു തമാശ: {}",
-        'kn': "{name}, ನಿಮಗಾಗಿ ಒಂದು ಜೋಕ್: {}",
-        'ur': "{name}, آپ کے لیے ایک لطیفہ: {}",
-        'ja': "{name}、あなたのためのジョーク: {}"
+        'en': "{name}, here's a joke for you: {joke}",
+        'hi': "{name}, यहाँ आपके लिए एक चुटकुला है: {joke}",
+        'ta': "{name}, உங்களுக்கான ஒரு நகைச்சுவை: {joke}",
+        'te': "{name}, మీ కోసం ఒక జోక్: {joke}",
+        'ml': "{name}, നിങ്ങൾക്കുള്ള ഒരു തമാശ: {joke}",
+        'kn': "{name}, ನಿಮಗಾಗಿ ಒಂದು ಜೋಕ್: {joke}",
+        'ur': "{name}, آپ کے لیے ایک لطیفہ: {joke}",
+        'ja': "{name}、あなたのためのジョーク: {joke}"
     }
+}
+
+# Mapping app names to URLs or special identifiers for mobile apps
+APP_URLS = {
+    "calculator": "https://www.google.com/search?q=calculator",
+    "instagram": "https://www.instagram.com",
+    "whatsapp": "whatsapp://send",  # WhatsApp mobile URI scheme
+    "youtube": "https://www.youtube.com",
+    "google": "https://www.google.com",
+    "chatgpt": "https://chat.openai.com",
+    "facebook": "https://www.facebook.com",
+    "vlc": "vlc://",  # VLC URI scheme (may not work on all devices)
+    "filemanager": "file://",  # File manager URI (depends on device)
+    # Add more apps and their URIs or URLs here as needed
 }
 
 # Helper to get or set user name in session
 def get_user_name(command, detected_lang):
-    # Try to extract name from command
     name = session.get('user_name')
-    # Look for "my name is ..." or "I am ..." or "I'm ..." in any language
+    # Patterns to detect name introductions in various languages
     patterns = [
         r"my name is ([\w\s]+)",
         r"i am ([\w\s]+)",
@@ -160,13 +183,12 @@ def get_user_name(command, detected_lang):
     for pat in patterns:
         match = re.search(pat, command, re.IGNORECASE)
         if match:
-            name = match.group(1).strip().split()[0]
-            session['user_name'] = name
-            return name
-    # If not found, return last name or default
+            name_candidate = match.group(1).strip().split()[0]
+            session['user_name'] = name_candidate
+            return name_candidate
     if name:
         return name
-    # Default fallback
+    # Default friendly fallback per language
     return {
         'en': "Friend", 'hi': "मित्र", 'ta': "நண்பர்", 'te': "స్నేహితుడు",
         'ml': "സുഹൃത്ത്", 'kn': "ಸ್ನೇಹಿತ", 'ur': "دوست", 'ja': "友達"
@@ -178,7 +200,12 @@ def detect_and_translate(text):
         detection = translator.detect(text)
         detected_lang = detection.lang
         confidence = detection.confidence
-        return text, detected_lang
+        # Translate to English only if not English and confidence > 0.3
+        if detected_lang != 'en' and confidence > 0.3:
+            translated = translator.translate(text, src=detected_lang, dest='en')
+            return translated.text, detected_lang
+        else:
+            return text, detected_lang
     except Exception as e:
         print(f"Translation error: {e}")
         return text, 'en'
@@ -193,14 +220,13 @@ def translate_response(text, target_lang):
         print(f"Response translation error: {e}")
         return text
 
-def get_localized_response(response_key, lang, name, *args):
+def get_localized_response(response_key, lang, name, **kwargs):
     if lang in MULTILINGUAL_RESPONSES.get(response_key, {}):
         template = MULTILINGUAL_RESPONSES[response_key][lang]
     else:
         template = MULTILINGUAL_RESPONSES[response_key].get('en', '')
-    if args:
-        return template.format(name=name, *args)
-    return template.format(name=name)
+    # Format with name and other keyword args
+    return template.format(name=name, **kwargs)
 
 @app.route("/command", methods=["POST"])
 def handle_command():
@@ -212,28 +238,33 @@ def handle_command():
     response = get_localized_response('default_response', detected_lang, name)
     navigate = None
 
-    # App opening commands
+    # App opening commands with improved app handling
     if any(app_cmd in command for app_cmd in [
         "open calculator", "open instagram", "open whatsapp", "open youtube", "open google",
-        "launch calculator", "launch instagram", "launch whatsapp", "launch youtube", "launch google"
+        "launch calculator", "launch instagram", "launch whatsapp", "launch youtube", "launch google",
+        "open chatgpt", "open facebook", "open vlc", "open filemanager",
+        "launch chatgpt", "launch facebook", "launch vlc", "launch filemanager"
     ]):
-        app_name = ""
-        if "calculator" in command:
-            app_name = "Calculator"
-            navigate = "https://www.google.com/search?q=calculator"
-        elif "instagram" in command:
-            app_name = "Instagram"
-            navigate = "https://www.instagram.com"
-        elif "whatsapp" in command:
-            app_name = "WhatsApp"
-            navigate = "https://web.whatsapp.com"
-        elif "youtube" in command:
-            app_name = "YouTube"
-            navigate = "https://www.youtube.com"
-        elif "google" in command:
-            app_name = "Google"
-            navigate = "https://www.google.com"
-        response = get_localized_response('app_opening', detected_lang, name, app_name)
+        app_key = None
+        for key in APP_URLS.keys():
+            if key in command:
+                app_key = key
+                break
+        if app_key:
+            app_name = app_key.capitalize() if app_key != "filemanager" else "File Manager"
+            # Special handling for mobile app URIs
+            navigate = APP_URLS[app_key]
+            # For WhatsApp, if on mobile, whatsapp://send opens app; else fallback to web
+            if app_key == "whatsapp":
+                # Detect if request is from mobile user-agent (optional)
+                user_agent = request.headers.get('User-Agent', '').lower()
+                if "mobile" not in user_agent:
+                    navigate = "https://web.whatsapp.com"
+            # VLC and File Manager URIs may not work on all devices, fallback to Google search
+            if app_key in ["vlc", "filemanager"]:
+                # Fallback URL (Google search)
+                navigate = f"https://www.google.com/search?q={app_key}"
+            response = get_localized_response('app_opening', detected_lang, name, app=app_name)
 
     # Greetings
     elif any(greet in command for greet in [
@@ -260,10 +291,9 @@ def handle_command():
         joke = pyjokes.get_joke()
         if detected_lang != 'en':
             joke = translate_response(joke, detected_lang)
-        joke_response = get_localized_response('joke_response', detected_lang, name)
-        response = joke_response.format(joke)
+        response = get_localized_response('joke_response', detected_lang, name, joke=joke)
 
-    # Enhanced math operations with complex functions
+    # Enhanced math operations
     elif any(math_keyword in command for math_keyword in [
         "calculate", "compute", "solve", "math", "square root", "sin", "cos", "tan", "log", "factorial", "power", "sqrt"
     ]) or re.search(r"[\d+\-*/.^%]+", command):
@@ -278,21 +308,26 @@ def handle_command():
             print(f"Math error: {e}")
             response = get_localized_response('math_error', detected_lang, name)
 
-    # Location search for Google Maps
+    # Location queries including current location
     elif any(location_keyword in command for location_keyword in [
         "where is", "location of", "find location", "where can i find", "directions to", "how to get to", "where does", "located"
     ]):
-        location_query = extract_location_query(command)
-        if location_query:
-            response = get_localized_response('location_response', detected_lang, name, location_query)
-            navigate = f"https://www.google.com/maps/search/{location_query.replace(' ', '+')}"
+        # Special case: current location queries
+        if any(phrase in command for phrase in ["my location", "current location", "where am i", "where am I"]):
+            response = get_localized_response('current_location_response', detected_lang, name)
+            navigate = None
         else:
-            response = get_localized_response('location_error', detected_lang, name)
+            location_query = extract_location_query(command)
+            if location_query:
+                response = get_localized_response('location_response', detected_lang, name, location=location_query)
+                navigate = f"https://www.google.com/maps/search/{location_query.replace(' ', '+')}"
+            else:
+                response = get_localized_response('location_error', detected_lang, name)
 
     # Play command for YouTube
     elif command.startswith("play "):
         topic = command.replace("play", "").strip()
-        response = get_localized_response('play_response', detected_lang, name, topic)
+        response = get_localized_response('play_response', detected_lang, name, topic=topic)
         navigate = f"https://www.youtube.com/results?search_query={topic.replace(' ', '+')}"
 
     # Search queries
@@ -300,7 +335,7 @@ def handle_command():
         "what is", "who is", "how does", "how is", "tell me", "search", "define", "explain", "what do you mean by", "what's"
     )):
         query = command
-        response = get_localized_response('search_response', detected_lang, name, query)
+        response = get_localized_response('search_response', detected_lang, name, query=query)
         navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
 
     return jsonify({"reply": response, "navigate": navigate})
@@ -323,7 +358,6 @@ def solve_complex_math(command):
     if "square root" in cmd or "sqrt" in cmd:
         match = re.search(r'(?:square root of|sqrt of|sqrt)\s*(\d+(?:\.\d+)?)', cmd)
         if not match:
-            # Try to extract number after 'sqrt' or 'square root'
             match = re.search(r'(?:sqrt|square root)\s*(\d+(?:\.\d+)?)', cmd)
         if match:
             num = float(match.group(1))
