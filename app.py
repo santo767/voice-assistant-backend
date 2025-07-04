@@ -23,8 +23,10 @@ def detect_and_translate(text):
         detected_lang = detection.lang
         confidence = detection.confidence
         
+        print(f"Detected language: {detected_lang}, Confidence: {confidence}")
+        
         # If it's not English, translate to English
-        if detected_lang != 'en' and confidence > 0.5:
+        if detected_lang != 'en' and confidence > 0.3:  # Lowered threshold
             translated = translator.translate(text, src=detected_lang, dest='en')
             return translated.text, detected_lang
         else:
@@ -86,6 +88,16 @@ MULTILINGUAL_RESPONSES = {
         'kn': "ಫಲಿತಾಂಶ",
         'ur': "نتیجہ ہے",
         'ja': "結果は"
+    },
+    'app_opening': {
+        'en': "Opening {} for you",
+        'hi': "{} खोल रहा हूं",
+        'ta': "உங்களுக்காக {} ஐ திறக்கிறேன்",
+        'te': "మీ కోసం {} ను తెరుస్తున్నాను",
+        'ml': "നിങ്ങൾക്കായി {} തുറക്കുന്നു",
+        'kn': "ನಿಮಗಾಗಿ {} ಅನ್ನು ತೆರೆಯುತ್ತಿದ್ದೇನೆ",
+        'ur': "آپ کے لیے {} کھول رہا ہوں",
+        'ja': "あなたのために{}を開いています"
     },
     'location_response': {
         'en': "Here's the location of {} on Google Maps.",
@@ -187,8 +199,29 @@ def handle_command():
     print(f"Detected language: {detected_lang}")
     print(f"Translated command: {translated_command}")
     
+    # App opening commands - NEW FEATURE
+    if any(app_cmd in command for app_cmd in ["open calculator", "open instagram", "open whatsapp", "open youtube", "open google", "launch calculator", "launch instagram", "launch whatsapp", "launch youtube", "launch google"]):
+        app_name = ""
+        if "calculator" in command:
+            app_name = "Calculator"
+            navigate = "https://www.google.com/search?q=calculator"
+        elif "instagram" in command:
+            app_name = "Instagram"
+            navigate = "https://www.instagram.com"
+        elif "whatsapp" in command:
+            app_name = "WhatsApp"
+            navigate = "https://web.whatsapp.com"
+        elif "youtube" in command:
+            app_name = "YouTube"
+            navigate = "https://www.youtube.com"
+        elif "google" in command:
+            app_name = "Google"
+            navigate = "https://www.google.com"
+        
+        response = get_localized_response('app_opening', detected_lang, app_name)
+    
     # Greetings
-    if any(greet in command for greet in ["hello", "hi", "hey", "good morning", "good evening", "namaste", "vanakkam"]):
+    elif any(greet in command for greet in ["hello", "hi", "hey", "good morning", "good evening", "namaste", "vanakkam"]):
         response = get_localized_response('greeting', detected_lang)
     
     # Time query
@@ -208,12 +241,13 @@ def handle_command():
     # Joke request
     elif "joke" in command:
         joke = pyjokes.get_joke()
+        # Only translate the joke if it's not in English
         if detected_lang != 'en':
             joke = translate_response(joke, detected_lang)
         joke_response = get_localized_response('joke_response', detected_lang)
         response = joke_response.format(joke)
     
-    # Enhanced math operations with complex functions
+    # Enhanced math operations with complex functions - FIXED
     elif any(math_keyword in command for math_keyword in ["calculate", "compute", "solve", "math", "square root", "sin", "cos", "tan", "log", "factorial", "power", "sqrt"]) or re.search(r"[\d+\-*/.^%]+", command):
         try:
             result = solve_complex_math(command)
@@ -247,9 +281,9 @@ def handle_command():
         response = get_localized_response('search_response', detected_lang, query)
         navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
     
-    # Translate response back if needed
-    if detected_lang != 'en' and response == get_localized_response('default_response', 'en'):
-        response = translate_response(response, detected_lang)
+    # If no specific response was generated and it's not in English, translate the default response
+    if response == get_localized_response('default_response', 'en') and detected_lang != 'en':
+        response = get_localized_response('default_response', detected_lang)
     
     # Debug logging
     print(f"Response: {response}")
@@ -273,24 +307,87 @@ def extract_location_query(command):
     return query if query else None
 
 def solve_complex_math(command):
-    """Solve complex mathematical expressions"""
+    """Solve complex mathematical expressions - FIXED VERSION"""
     # Convert command to lowercase for processing
     cmd = command.lower()
     
-    # Replace common mathematical terms
+    print(f"Processing math command: {cmd}")
+    
+    # Handle special math functions first
+    if "square root" in cmd or "sqrt" in cmd:
+        # Extract number after square root
+        match = re.search(r'(?:square root of|sqrt of|sqrt)\s*(\d+(?:\.\d+)?)', cmd)
+        if match:
+            num = float(match.group(1))
+            result = math.sqrt(num)
+            print(f"Square root of {num} = {result}")
+            return round(result, 6)
+    
+    # Handle trigonometric functions
+    if "sin" in cmd:
+        match = re.search(r'sin\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            angle = float(match.group(1))
+            result = math.sin(math.radians(angle))  # Convert to radians
+            print(f"Sin of {angle} degrees = {result}")
+            return round(result, 6)
+    
+    if "cos" in cmd:
+        match = re.search(r'cos\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            angle = float(match.group(1))
+            result = math.cos(math.radians(angle))
+            print(f"Cos of {angle} degrees = {result}")
+            return round(result, 6)
+    
+    if "tan" in cmd:
+        match = re.search(r'tan\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            angle = float(match.group(1))
+            result = math.tan(math.radians(angle))
+            print(f"Tan of {angle} degrees = {result}")
+            return round(result, 6)
+    
+    # Handle logarithm
+    if "log" in cmd:
+        match = re.search(r'log\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            num = float(match.group(1))
+            if num > 0:
+                result = math.log(num)  # Natural log
+                print(f"Log of {num} = {result}")
+                return round(result, 6)
+    
+    # Handle factorial
+    if "factorial" in cmd:
+        match = re.search(r'factorial\s*(?:of\s*)?(\d+)', cmd)
+        if match:
+            num = int(match.group(1))
+            if 0 <= num <= 20:  # Limit to prevent overflow
+                result = math.factorial(num)
+                print(f"Factorial of {num} = {result}")
+                return result
+    
+    # Handle power operations
+    if "power" in cmd or "raised to" in cmd:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*(?:to the power of|raised to|power)\s*(\d+(?:\.\d+)?)', cmd)
+        if match:
+            base = float(match.group(1))
+            exponent = float(match.group(2))
+            result = math.pow(base, exponent)
+            print(f"{base} raised to {exponent} = {result}")
+            return round(result, 6)
+    
+    # Clean up command for basic arithmetic
     replacements = {
-        "square root of": "sqrt(",
-        "square root": "sqrt(",
-        "sqrt of": "sqrt(",
-        "sin of": "sin(",
-        "cos of": "cos(",
-        "tan of": "tan(",
-        "log of": "log(",
-        "ln of": "log(",
-        "factorial of": "factorial(",
-        "power": "**",
-        "to the power of": "**",
-        "raised to": "**",
+        "calculate": "",
+        "compute": "",
+        "solve": "",
+        "math": "",
+        "what is": "",
+        "the": "",
+        "result": "",
+        "of": "",
         "times": "*",
         "divided by": "/",
         "plus": "+",
@@ -305,81 +402,30 @@ def solve_complex_math(command):
     for old, new in replacements.items():
         cmd = cmd.replace(old, new)
     
-    # Remove non-mathematical words
-    words_to_remove = ["calculate", "compute", "solve", "math", "what", "is", "the", "of", "result"]
-    for word in words_to_remove:
-        cmd = cmd.replace(word, "")
-    
-    # Clean up extra spaces
+    # Clean up extra spaces and non-essential words
     cmd = re.sub(r'\s+', ' ', cmd).strip()
     
-    # Handle special functions
-    if "sqrt(" in cmd and not cmd.endswith(")"):
-        # Add closing parenthesis for sqrt if missing
-        cmd = cmd.replace("sqrt(", "sqrt(") + ")"
+    # Extract mathematical expression
+    math_expression = re.search(r'[\d+\-*/.()^%\s]+', cmd)
+    if math_expression:
+        expr = math_expression.group(0).strip()
+        
+        # Replace ^ with ** for power operations
+        expr = expr.replace('^', '**')
+        
+        # Basic safety check
+        allowed_chars = set('0123456789+-*/.() ')
+        if all(c in allowed_chars for c in expr):
+            try:
+                # Evaluate the expression
+                result = eval(expr)
+                print(f"Basic math: {expr} = {result}")
+                return round(result, 6) if isinstance(result, float) else result
+            except Exception as e:
+                print(f"Eval error: {e}")
+                return None
     
-    if "factorial(" in cmd:
-        # Handle factorial
-        factorial_match = re.search(r'factorial\((\d+)\)', cmd)
-        if factorial_match:
-            num = int(factorial_match.group(1))
-            factorial_result = math.factorial(num)
-            cmd = cmd.replace(factorial_match.group(0), str(factorial_result))
-    
-    # Handle trigonometric functions (convert to radians if needed)
-    trig_functions = ["sin(", "cos(", "tan("]
-    for func in trig_functions:
-        if func in cmd:
-            # Find the number inside the function
-            pattern = f'{func[:-1]}\\((\\d+(?:\\.\\d+)?)\\)'
-            match = re.search(pattern, cmd)
-            if match:
-                angle = float(match.group(1))
-                # Convert degrees to radians
-                radians = math.radians(angle)
-                if func == "sin(":
-                    result = math.sin(radians)
-                elif func == "cos(":
-                    result = math.cos(radians)
-                elif func == "tan(":
-                    result = math.tan(radians)
-                cmd = cmd.replace(match.group(0), str(result))
-    
-    # Handle square root
-    if "sqrt(" in cmd:
-        sqrt_pattern = r'sqrt\((\d+(?:\.\d+)?)\)'
-        match = re.search(sqrt_pattern, cmd)
-        if match:
-            num = float(match.group(1))
-            result = math.sqrt(num)
-            cmd = cmd.replace(match.group(0), str(result))
-    
-    # Handle logarithms
-    if "log(" in cmd:
-        log_pattern = r'log\((\d+(?:\.\d+)?)\)'
-        match = re.search(log_pattern, cmd)
-        if match:
-            num = float(match.group(1))
-            result = math.log(num)
-            cmd = cmd.replace(match.group(0), str(result))
-    
-    # Clean up the expression
-    cmd = cmd.replace(" ", "")
-    
-    # Basic safety check
-    allowed_chars = set('0123456789+-*/.()^%')
-    if not all(c in allowed_chars for c in cmd):
-        return None
-    
-    # Replace ^ with ** for power operations
-    cmd = cmd.replace('^', '**')
-    
-    try:
-        # Evaluate the expression
-        result = eval(cmd)
-        return round(result, 6) if isinstance(result, float) else result
-    except:
-        return None
+    return None
 
 @app.route("/", methods=["GET"])
 def home():
