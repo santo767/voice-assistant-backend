@@ -9,13 +9,52 @@ import math
 from googletrans import Translator
 
 app = Flask(__name__)
-CORS(app)
-app.secret_key = "your_secure_secret_key_here"  # Replace with a secure secret key
+CORS(app, supports_credentials=True)
+app.secret_key = "your_very_secure_secret_key"
 
 # Initialize translator
 translator = Translator()
 
-# Multilingual responses with {name} placeholder
+# Supported app URIs for mobile
+APP_URIS = {
+    "whatsapp": {
+        "uri": "whatsapp://send",
+        "web": "https://web.whatsapp.com"
+    },
+    "chatgpt": {
+        "uri": "https://chat.openai.com",
+        "web": "https://chat.openai.com"
+    },
+    "facebook": {
+        "uri": "fb://facewebmodal/f?href=https://facebook.com",
+        "web": "https://facebook.com"
+    },
+    "vlc": {
+        "uri": "vlc://",
+        "web": "https://www.videolan.org/vlc/"
+    },
+    "filemanager": {
+        "uri": "file:///sdcard/",
+        "web": "file:///sdcard/"
+    },
+    "calculator": {
+        "uri": "calculator://",
+        "web": "https://www.google.com/search?q=calculator"
+    },
+    "instagram": {
+        "uri": "instagram://user?username=",
+        "web": "https://www.instagram.com"
+    },
+    "youtube": {
+        "uri": "vnd.youtube://",
+        "web": "https://www.youtube.com"
+    },
+    "google": {
+        "uri": "https://www.google.com",
+        "web": "https://www.google.com"
+    }
+}
+
 MULTILINGUAL_RESPONSES = {
     'greeting': {
         'en': "Hello {name}! How can I help you?",
@@ -58,14 +97,14 @@ MULTILINGUAL_RESPONSES = {
         'ja': "{name}、結果は"
     },
     'app_opening': {
-        'en': "{name}, opening {app} for you",
-        'hi': "{name}, {app} खोल रहा हूं",
-        'ta': "{name}, உங்களுக்காக {app} ஐ திறக்கிறேன்",
-        'te': "{name}, మీ కోసం {app} ను తెరుస్తున్నాను",
-        'ml': "{name}, നിങ്ങൾക്കായി {app} തുറക്കുന്നു",
-        'kn': "{name}, ನಿಮಗಾಗಿ {app} ಅನ್ನು ತೆರೆಯುತ್ತಿದ್ದೇನೆ",
-        'ur': "{name}, آپ کے لیے {app} کھول رہا ہوں",
-        'ja': "{name}、あなたのために{app}を開いています"
+        'en': "{name}, opening {app} for you.",
+        'hi': "{name}, {app} खोल रहा हूं।",
+        'ta': "{name}, உங்களுக்காக {app} ஐ திறக்கிறேன்.",
+        'te': "{name}, మీ కోసం {app} ను తెరుస్తున్నాను.",
+        'ml': "{name}, നിങ്ങൾക്കായി {app} തുറക്കുന്നു.",
+        'kn': "{name}, ನಿಮಗಾಗಿ {app} ಅನ್ನು ತೆರೆಯುತ್ತಿದ್ದೇನೆ.",
+        'ur': "{name}, آپ کے لیے {app} کھول رہا ہوں۔",
+        'ja': "{name}、あなたのために{app}を開いています。"
     },
     'location_response': {
         'en': "{name}, here's the location of {location} on Google Maps.",
@@ -149,24 +188,14 @@ MULTILINGUAL_RESPONSES = {
     }
 }
 
-# Mapping app names to URLs or special identifiers for mobile apps
-APP_URLS = {
-    "calculator": "https://www.google.com/search?q=calculator",
-    "instagram": "https://www.instagram.com",
-    "whatsapp": "whatsapp://send",  # WhatsApp mobile URI scheme
-    "youtube": "https://www.youtube.com",
-    "google": "https://www.google.com",
-    "chatgpt": "https://chat.openai.com",
-    "facebook": "https://www.facebook.com",
-    "vlc": "vlc://",  # VLC URI scheme (may not work on all devices)
-    "filemanager": "file://",  # File manager URI (depends on device)
-    # Add more apps and their URIs or URLs here as needed
-}
-
-# Helper to get or set user name in session
 def get_user_name(command, detected_lang):
-    name = session.get('user_name')
-    # Patterns to detect name introductions in various languages
+    # Check for explicit name in the request (preferred for mobile apps)
+    data = request.get_json(silent=True) or {}
+    name = data.get("name")
+    if name:
+        session['user_name'] = name
+        return name
+    # Otherwise, try to extract from command
     patterns = [
         r"my name is ([\w\s]+)",
         r"i am ([\w\s]+)",
@@ -186,26 +215,21 @@ def get_user_name(command, detected_lang):
             name_candidate = match.group(1).strip().split()[0]
             session['user_name'] = name_candidate
             return name_candidate
-    if name:
-        return name
-    # Default friendly fallback per language
+    # Otherwise, try session
+    if 'user_name' in session:
+        return session['user_name']
+    # Default fallback
     return {
         'en': "Friend", 'hi': "मित्र", 'ta': "நண்பர்", 'te': "స్నేహితుడు",
         'ml': "സുഹൃത്ത്", 'kn': "ಸ್ನೇಹಿತ", 'ur': "دوست", 'ja': "友達"
     }.get(detected_lang, "Friend")
 
-# Language detection and translation helper
 def detect_and_translate(text):
     try:
         detection = translator.detect(text)
         detected_lang = detection.lang
         confidence = detection.confidence
-        # Translate to English only if not English and confidence > 0.3
-        if detected_lang != 'en' and confidence > 0.3:
-            translated = translator.translate(text, src=detected_lang, dest='en')
-            return translated.text, detected_lang
-        else:
-            return text, detected_lang
+        return text, detected_lang
     except Exception as e:
         print(f"Translation error: {e}")
         return text, 'en'
@@ -221,11 +245,7 @@ def translate_response(text, target_lang):
         return text
 
 def get_localized_response(response_key, lang, name, **kwargs):
-    if lang in MULTILINGUAL_RESPONSES.get(response_key, {}):
-        template = MULTILINGUAL_RESPONSES[response_key][lang]
-    else:
-        template = MULTILINGUAL_RESPONSES[response_key].get('en', '')
-    # Format with name and other keyword args
+    template = MULTILINGUAL_RESPONSES.get(response_key, {}).get(lang) or MULTILINGUAL_RESPONSES[response_key]['en']
     return template.format(name=name, **kwargs)
 
 @app.route("/command", methods=["POST"])
@@ -234,40 +254,23 @@ def handle_command():
     original_command = data.get("command", "")
     translated_command, detected_lang = detect_and_translate(original_command)
     command = translated_command.lower()
-    name = get_user_name(command, detected_lang)
+    name = get_user_name(original_command, detected_lang)
     response = get_localized_response('default_response', detected_lang, name)
     navigate = None
 
-    # App opening commands with improved app handling
-    if any(app_cmd in command for app_cmd in [
-        "open calculator", "open instagram", "open whatsapp", "open youtube", "open google",
-        "launch calculator", "launch instagram", "launch whatsapp", "launch youtube", "launch google",
-        "open chatgpt", "open facebook", "open vlc", "open filemanager",
-        "launch chatgpt", "launch facebook", "launch vlc", "launch filemanager"
-    ]):
-        app_key = None
-        for key in APP_URLS.keys():
-            if key in command:
-                app_key = key
-                break
-        if app_key:
-            app_name = app_key.capitalize() if app_key != "filemanager" else "File Manager"
-            # Special handling for mobile app URIs
-            navigate = APP_URLS[app_key]
-            # For WhatsApp, if on mobile, whatsapp://send opens app; else fallback to web
-            if app_key == "whatsapp":
-                # Detect if request is from mobile user-agent (optional)
-                user_agent = request.headers.get('User-Agent', '').lower()
-                if "mobile" not in user_agent:
-                    navigate = "https://web.whatsapp.com"
-            # VLC and File Manager URIs may not work on all devices, fallback to Google search
-            if app_key in ["vlc", "filemanager"]:
-                # Fallback URL (Google search)
-                navigate = f"https://www.google.com/search?q={app_key}"
+    # App opening with mobile URI preference
+    for app in APP_URIS.keys():
+        if f"open {app}" in command or f"launch {app}" in command:
+            app_name = app.capitalize() if app != "filemanager" else "File Manager"
+            uri = APP_URIS[app]["uri"]
+            web = APP_URIS[app]["web"]
+            # Let frontend choose: send both uri and web
+            navigate = {"uri": uri, "web": web}
             response = get_localized_response('app_opening', detected_lang, name, app=app_name)
+            break
 
     # Greetings
-    elif any(greet in command for greet in [
+    if any(greet in command for greet in [
         "hello", "hi", "hey", "good morning", "good evening", "namaste", "vanakkam"
     ]):
         response = get_localized_response('greeting', detected_lang, name)
@@ -293,7 +296,7 @@ def handle_command():
             joke = translate_response(joke, detected_lang)
         response = get_localized_response('joke_response', detected_lang, name, joke=joke)
 
-    # Enhanced math operations
+    # Math
     elif any(math_keyword in command for math_keyword in [
         "calculate", "compute", "solve", "math", "square root", "sin", "cos", "tan", "log", "factorial", "power", "sqrt"
     ]) or re.search(r"[\d+\-*/.^%]+", command):
@@ -308,11 +311,10 @@ def handle_command():
             print(f"Math error: {e}")
             response = get_localized_response('math_error', detected_lang, name)
 
-    # Location queries including current location
+    # Location features
     elif any(location_keyword in command for location_keyword in [
         "where is", "location of", "find location", "where can i find", "directions to", "how to get to", "where does", "located"
     ]):
-        # Special case: current location queries
         if any(phrase in command for phrase in ["my location", "current location", "where am i", "where am I"]):
             response = get_localized_response('current_location_response', detected_lang, name)
             navigate = None
@@ -337,6 +339,10 @@ def handle_command():
         query = command
         response = get_localized_response('search_response', detected_lang, name, query=query)
         navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+
+    # Always translate response back to user's language if needed
+    if detected_lang != 'en':
+        response = translate_response(response, detected_lang)
 
     return jsonify({"reply": response, "navigate": navigate})
 
