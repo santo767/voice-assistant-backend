@@ -56,7 +56,7 @@ def get_response(key, name, **kwargs):
         'fun_fact': f"{name}, did you know? {kwargs.get('fact')}",
         'math_result': f"{name}, the result is {kwargs.get('result')}",
         'math_error': f"{name}, I couldn't solve that.",
-        'weather': f"{name}, the weather in {kwargs.get('city')} is {kwargs.get('weather')}",
+        'weather': f"{name}, here's the weather in {kwargs.get('city')} on Google.",
         'reminder_set': f"{name}, I have set a reminder: {kwargs.get('reminder')}",
         'app_open': f"{name}, opening {kwargs.get('app')} for you.",
         'location_found': f"{name}, here's {kwargs.get('location')} on Google Maps.",
@@ -67,31 +67,52 @@ def get_response(key, name, **kwargs):
     return responses.get(key, responses['default'])
 
 def solve_complex_math(command):
+    cmd = command.lower()
+    if "square root" in cmd or "sqrt" in cmd:
+        match = re.search(r'(?:square root of|sqrt of|sqrt)\s*(\d+(?:\.\d+)?)', cmd)
+        if match:
+            return round(math.sqrt(float(match.group(1))), 6)
+    if "sin" in cmd:
+        match = re.search(r'sin\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            return round(math.sin(math.radians(float(match.group(1)))), 6)
+    if "cos" in cmd:
+        match = re.search(r'cos\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            return round(math.cos(math.radians(float(match.group(1)))), 6)
+    if "tan" in cmd:
+        match = re.search(r'tan\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            return round(math.tan(math.radians(float(match.group(1)))), 6)
+    if "log" in cmd:
+        match = re.search(r'log\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
+        if match:
+            num = float(match.group(1))
+            if num > 0:
+                return round(math.log(num), 6)
+    if "factorial" in cmd:
+        match = re.search(r'factorial\s*(?:of\s*)?(\d+)', cmd)
+        if match:
+            num = int(match.group(1))
+            if 0 <= num <= 100:
+                return math.factorial(num)
+    if "power" in cmd or "raised to" in cmd:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*(?:to the power of|raised to|power)\s*(\d+(?:\.\d+)?)', cmd)
+        if match:
+            return round(math.pow(float(match.group(1)), float(match.group(2))), 6)
+
+    replacements = {
+        "plus": "+", "minus": "-", "times": "*", "multiply": "*", "divide": "/", "divided by": "/",
+        "power": "**", "pi": str(math.pi), "e": str(math.e)
+    }
+    for word, symbol in replacements.items():
+        cmd = cmd.replace(word, symbol)
+    cmd = re.sub(r"[^0-9+\-*/().e\s]", "", cmd)
     try:
-        expression = command.lower()
-        replacements = {
-            "plus": "+", "minus": "-", "times": "*", "multiply": "*", "divide": "/", "divided by": "/",
-            "power": "**", "pi": str(math.pi), "e": str(math.e)
-        }
-        for word, symbol in replacements.items():
-            expression = expression.replace(word, symbol)
-        expression = re.sub(r"[^0-9+\-*/().e\s]", "", expression)
-        result = eval(expression.strip())
+        result = eval(cmd.strip())
         return round(result, 6)
     except:
         return None
-
-def get_weather(city):
-    API_KEY = "your_openweathermap_api_key"
-    try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
-        res = requests.get(url)
-        data = res.json()
-        if data.get("main"):
-            return f"{data['weather'][0]['description']}, {data['main']['temp']}°C"
-    except:
-        pass
-    return "unavailable"
 
 def extract_location_query(command):
     command = command.lower()
@@ -109,55 +130,40 @@ def handle_command():
     navigate = None
     response = ""
 
-    # Greetings
     if any(kw in command for kw in ["hello", "hi", "hey"]):
         response = get_response('greeting', name)
     elif "good morning" in command:
         response = get_response('good_morning', name)
     elif "good night" in command:
         response = get_response('good_night', name)
-
-    # Time and date
     elif "time" in command:
         now = datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%I:%M %p')
         response = get_response('time', name, time=now)
     elif "date" in command:
         today = datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%B %d, %Y')
         response = get_response('date', name, date=today)
-
-    # Joke / Fact
     elif "joke" in command:
         response = get_response('joke', name, joke=pyjokes.get_joke())
     elif "fun fact" in command or "something interesting" in command:
         response = get_response('fun_fact', name, fact=random.choice(FUN_FACTS))
-
-    # Reminder
     elif "remind me" in command or "set a reminder" in command:
         reminder = re.sub(r".*remind me to |.*set a reminder (for|to)?", "", command).strip()
         response = get_response('reminder_set', name, reminder=reminder)
-
-    # Weather
     elif "weather" in command:
         match = re.search(r"weather in ([\w\s]+)", command)
         city = match.group(1).strip() if match else "your city"
-        weather = get_weather(city)
-        response = get_response('weather', name, city=city, weather=weather)
-
-    # App launching
+        response = get_response('weather', name, city=city)
+        navigate = f"https://www.google.com/search?q=weather+in+{city.replace(' ', '+')}"
     elif any(f"open {app}" in command or f"launch {app}" in command for app in APP_URIS):
         for app, urls in APP_URIS.items():
             if f"open {app}" in command or f"launch {app}" in command:
                 navigate = urls
                 response = get_response('app_open', name, app=app.capitalize())
                 break
-
-    # YouTube
     elif command.startswith("play "):
         topic = command.replace("play", "").strip()
         navigate = f"https://www.youtube.com/results?search_query={topic.replace(' ', '+')}"
         response = f"{name}, playing {topic} on YouTube."
-
-    # Location
     elif any(kw in command for kw in ["where is", "directions to", "navigate to", "map of", "location of"]):
         place = extract_location_query(command)
         if place:
@@ -165,16 +171,12 @@ def handle_command():
             response = get_response('location_found', name, location=place)
         else:
             response = get_response('location_unknown', name)
-
-    # Math
-    elif any(op in command for op in ["plus", "minus", "times", "multiply", "divide", "power"]) or re.search(r"[0-9\+\-*/]+", command):
+    elif any(op in command for op in ["plus", "minus", "times", "multiply", "divide", "power", "sqrt", "square root", "sin", "cos", "tan", "log", "factorial"]) or re.search(r"[0-9\+\-*/]+", command):
         result = solve_complex_math(command)
         if result is not None:
             response = get_response('math_result', name, result=result)
         else:
             response = get_response('math_error', name)
-
-    # Google search for unknown or custom questions
     elif command.startswith(("what is", "who is", "how is", "how does", "tell me", "search", "define", "explain", "can you")) or True:
         query = command
         navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
