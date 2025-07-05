@@ -5,22 +5,27 @@ import pytz
 import re
 import pyjokes
 import math
-import requests
 import random
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 app.secret_key = "your_very_secure_secret_key"
 
+# In-memory storage for simple reminders and user profile
+temp_memory = {
+    "reminders": [],
+    "user_profile": {}
+}
+
 APP_URIS = {
-    "whatsapp": {"uri": "whatsapp://send", "web": "https://web.whatsapp.com"},
+    "whatsapp": {"uri": "https://wa.me/", "web": "https://web.whatsapp.com"},
     "chatgpt": {"uri": "https://chat.openai.com", "web": "https://chat.openai.com"},
-    "facebook": {"uri": "fb://facewebmodal/f?href=https://facebook.com", "web": "https://facebook.com"},
-    "vlc": {"uri": "vlc://", "web": "https://www.videolan.org/vlc/"},
+    "facebook": {"uri": "https://facebook.com", "web": "https://facebook.com"},
+    "vlc": {"uri": "https://www.videolan.org/vlc/", "web": "https://www.videolan.org/vlc/"},
     "filemanager": {"uri": "file:///sdcard/", "web": "file:///sdcard/"},
-    "calculator": {"uri": "calculator://", "web": "https://www.google.com/search?q=calculator"},
-    "instagram": {"uri": "instagram://user?username=", "web": "https://www.instagram.com"},
-    "youtube": {"uri": "vnd.youtube://", "web": "https://www.youtube.com"},
+    "calculator": {"uri": "https://www.google.com/search?q=calculator", "web": "https://www.google.com/search?q=calculator"},
+    "instagram": {"uri": "https://www.instagram.com", "web": "https://www.instagram.com"},
+    "youtube": {"uri": "https://www.youtube.com", "web": "https://www.youtube.com"},
     "google": {"uri": "https://www.google.com", "web": "https://www.google.com"}
 }
 
@@ -37,13 +42,16 @@ def get_user_name(command):
     name = data.get("name")
     if name:
         session['user_name'] = name
+        temp_memory['user_profile']['name'] = name
         return name
     for pat in [r"my name is ([\w\s]+)", r"i am ([\w\s]+)", r"i'm ([\w\s]+)"]:
         match = re.search(pat, command, re.IGNORECASE)
         if match:
-            session['user_name'] = match.group(1).strip().split()[0]
-            return session['user_name']
-    return session.get('user_name', "Friend")
+            extracted = match.group(1).strip().split()[0]
+            session['user_name'] = extracted
+            temp_memory['user_profile']['name'] = extracted
+            return extracted
+    return session.get('user_name', temp_memory['user_profile'].get('name', "Friend"))
 
 def get_response(key, name, **kwargs):
     responses = {
@@ -67,49 +75,18 @@ def get_response(key, name, **kwargs):
     return responses.get(key, responses['default'])
 
 def solve_complex_math(command):
-    cmd = command.lower()
-    if "square root" in cmd or "sqrt" in cmd:
-        match = re.search(r'(?:square root of|sqrt of|sqrt)\s*(\d+(?:\.\d+)?)', cmd)
-        if match:
-            return round(math.sqrt(float(match.group(1))), 6)
-    if "sin" in cmd:
-        match = re.search(r'sin\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
-        if match:
-            return round(math.sin(math.radians(float(match.group(1)))), 6)
-    if "cos" in cmd:
-        match = re.search(r'cos\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
-        if match:
-            return round(math.cos(math.radians(float(match.group(1)))), 6)
-    if "tan" in cmd:
-        match = re.search(r'tan\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
-        if match:
-            return round(math.tan(math.radians(float(match.group(1)))), 6)
-    if "log" in cmd:
-        match = re.search(r'log\s*(?:of\s*)?(\d+(?:\.\d+)?)', cmd)
-        if match:
-            num = float(match.group(1))
-            if num > 0:
-                return round(math.log(num), 6)
-    if "factorial" in cmd:
-        match = re.search(r'factorial\s*(?:of\s*)?(\d+)', cmd)
-        if match:
-            num = int(match.group(1))
-            if 0 <= num <= 100:
-                return math.factorial(num)
-    if "power" in cmd or "raised to" in cmd:
-        match = re.search(r'(\d+(?:\.\d+)?)\s*(?:to the power of|raised to|power)\s*(\d+(?:\.\d+)?)', cmd)
-        if match:
-            return round(math.pow(float(match.group(1)), float(match.group(2))), 6)
-
-    replacements = {
-        "plus": "+", "minus": "-", "times": "*", "multiply": "*", "divide": "/", "divided by": "/",
-        "power": "**", "pi": str(math.pi), "e": str(math.e)
-    }
-    for word, symbol in replacements.items():
-        cmd = cmd.replace(word, symbol)
-    cmd = re.sub(r"[^0-9+\-*/().e\s]", "", cmd)
     try:
-        result = eval(cmd.strip())
+        cmd = command.lower()
+        replacements = {
+            "plus": "+", "minus": "-", "times": "*", "multiply": "*", "divide": "/", "divided by": "/",
+            "power": "**", "raised to": "**", "sqrt": "math.sqrt", "square root of": "math.sqrt", "cube root of": "math.pow",
+            "sin": "math.sin", "cos": "math.cos", "tan": "math.tan", "log": "math.log", "factorial": "math.factorial",
+            "pi": str(math.pi), "e": str(math.e)
+        }
+        for word, symbol in replacements.items():
+            cmd = cmd.replace(word, symbol)
+        cmd = re.sub(r"[^0-9+\-*/().e\smathsqrtlogfactorialpow]+", "", cmd)
+        result = eval(cmd)
         return round(result, 6)
     except:
         return None
@@ -148,6 +125,7 @@ def handle_command():
         response = get_response('fun_fact', name, fact=random.choice(FUN_FACTS))
     elif "remind me" in command or "set a reminder" in command:
         reminder = re.sub(r".*remind me to |.*set a reminder (for|to)?", "", command).strip()
+        temp_memory['reminders'].append(reminder)
         response = get_response('reminder_set', name, reminder=reminder)
     elif "weather" in command:
         match = re.search(r"weather in ([\w\s]+)", command)
@@ -157,7 +135,7 @@ def handle_command():
     elif any(f"open {app}" in command or f"launch {app}" in command for app in APP_URIS):
         for app, urls in APP_URIS.items():
             if f"open {app}" in command or f"launch {app}" in command:
-                navigate = urls
+                navigate = urls['uri']
                 response = get_response('app_open', name, app=app.capitalize())
                 break
     elif command.startswith("play "):
@@ -171,13 +149,13 @@ def handle_command():
             response = get_response('location_found', name, location=place)
         else:
             response = get_response('location_unknown', name)
-    elif any(op in command for op in ["plus", "minus", "times", "multiply", "divide", "power", "sqrt", "square root", "sin", "cos", "tan", "log", "factorial"]) or re.search(r"[0-9\+\-*/]+", command):
+    elif any(op in command for op in ["plus", "minus", "times", "multiply", "divide", "power", "sqrt", "square root", "cube root", "sin", "cos", "tan", "log", "factorial"]) or re.search(r"[0-9\+\-*/]+", command):
         result = solve_complex_math(command)
         if result is not None:
             response = get_response('math_result', name, result=result)
         else:
             response = get_response('math_error', name)
-    elif command.startswith(("what is", "who is", "how is", "how does", "tell me", "search", "define", "explain", "can you")) or True:
+    else:
         query = command
         navigate = f"https://www.google.com/search?q={query.replace(' ', '+')}"
         response = get_response('search', name, query=query)
@@ -191,6 +169,10 @@ def home():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
+
+@app.route("/reminders", methods=["GET"])
+def get_reminders():
+    return jsonify({"reminders": temp_memory['reminders']})
 
 if __name__ == "__main__":
     from waitress import serve
